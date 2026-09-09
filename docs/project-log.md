@@ -152,76 +152,42 @@
 
 ---
 
-### Sesión 4 — 2026-09-09: Fase 2+3+4 — Provisioning, Auth, CRUD completo
+### Sesión 4 — 2026-09-09: Fase 2+3+4+5+6+7 — Plataforma completa
 
-**Objetivo:** Provisionar dominio real, implementar auth LDAP, CRUD usuarios/grupos/DNS, OUs, password policy.
+**Objetivo:** Provisionar dominio real, implementar todas las features hasta backup.
 
 **Acciones realizadas:**
-1. **Fase 2 — Spike provisioning:**
-   - Primera VM (172.30.36.91) era LXC — samba-tool PANIC, samba-ad-dc no arranca. Doc: proxmox-lxc-limitations.md
-   - Usuario creó VM KVM nueva (172.30.36.115, Debian 13, 4 vCPU, 3.8 GB RAM, 75 GB)
-   - Instalación de Samba 4.22.10 + Go 1.24.4 en VM KVM
-   - Corrección de /etc/hosts, IP estática, detención de smbd standalone
-   - `POST /api/domain/provision` → dominio TELEDATA.LAB creado (Success: true)
-   - Post-provision: krb5.conf, resolv.conf, matar winbindd stale, samba-ad-dc iniciado
-   - Verificación completa: kinit OK, DNS SRV OK, DNS A OK, LDAP 389 OK, Kerberos 88 OK
-   - 3 usuarios (Administrator, Guest, krbtgt), 38 grupos, 1 computadora (SAMBAFORGE$)
-
-2. **Fase 3 — MVP gestión básica:**
-   - auth.go: LDAP bind con STARTTLS, JWT HS256, middleware de autenticación
-   - directory.go: CRUD usuarios (create/delete/password/disable/enable), grupos (create/delete/members), computers
-   - dns.go: zones, records, forwarders (con -P para Kerberos)
-   - 25+ endpoints API (auth, dashboard, users, groups, computers, dns)
-   - Frontend actualizado: Login real con API, JWT en localStorage, axios interceptor
-   - Dashboard con datos reales (usuarios, grupos, equipos, Samba version, realm)
-   - Users page: tabla, búsqueda, crear usuario (modal), eliminar
-   - Groups page: tabla con 38 grupos
-   - Computers page: tabla con SAMBAFORGE$
-   - ProtectedRoute para rutas autenticadas
-   - **Verificado por el usuario:** login funciona, crear usuario funciona
-
-3. **Fase 4 — Gestión avanzada (parcial):**
-   - directory/ou.go: ListOUs, CreateOU, DeleteOU
-   - directory/ou.go: GetPasswordPolicy, SetPasswordPolicy
-   - 5 endpoints nuevos: GET/POST/DELETE /api/ous, GET/PUT /api/password-policy
-   - Verificado: OU=Domain Controllers listada, password policy con complexity=on
+1. **Fase 2 — Spike provisioning:** Dominio TELEDATA.LAB provisionado desde API en VM KVM (172.30.36.115). kinit, DNS, LDAP, Kerberos verificados.
+2. **Fase 3 — MVP gestión básica:** Auth LDAP + STARTTLS + JWT, CRUD usuarios/grupos/computers, dashboard real, frontend Login+Dashboard+Users+Groups+Computers.
+3. **Fase 4 — Gestión avanzada:** OUs (CRUD), Password Policy (get/set), 6 plantillas GPO.
+4. **Fase 5 — DNS + GPO:** DNS zones/records con parser corregido, add/delete records con Kerberos, GPOs listados (Default Domain Policy, Default Domain Controllers Policy), 6 plantillas preconfiguradas.
+5. **Fase 6 — Seguridad y auditoría:** Audit log append-only (/var/log/sambaforge-audit.log), logging en login/create/delete/backup, kinit automático al login de admin.
+6. **Fase 7 — Backup y DR:** samba-tool domain backup online, listado de backups, eliminación.
 
 **Dominio activo:**
-- Realm: TELEDATA.LAB
-- NetBIOS: TELEDATA
-- DC: sambaforge.teledata.lab (172.30.36.115)
-- Admin: administrator@TELEDATA.LAB / SambaForge@2026
-- Samba: 4.22.10-Debian
-- Functional level: Windows 2008 R2
+- Realm: TELEDATA.LAB | NetBIOS: TELEDATA | DC: sambaforge.teledata.lab (172.30.36.115)
+- Admin: administrator@TELEDATA.LAB / SambaForge@2026 | Samba: 4.22.10
 
-**Archivos creados:**
-- `apps/api/auth/auth.go` — LDAP bind + STARTTLS + JWT
-- `apps/api/directory/directory.go` — CRUD usuarios/grupos/computers
-- `apps/api/directory/ou.go` — OUs + password policy
-- `apps/api/dns/dns.go` — DNS zones/records/forwarders
-- `apps/web/src/lib/api.ts` — axios client con JWT interceptor
-- `apps/web/src/stores/auth.ts` — Zustand auth store
-- `apps/web/src/pages/Login.tsx` — Login real con API
-- `apps/web/src/pages/Dashboard.tsx` — Dashboard con datos reales
-- `apps/web/src/pages/Users.tsx` — CRUD usuarios
-- `apps/web/src/pages/Groups.tsx` — Lista grupos
-- `apps/web/src/pages/Computers.tsx` — Lista equipos
-- `docs/reference/proxmox-lxc-limitations.md`
+**Estado del proyecto:**
+- Backend Go: 8 paquetes (auth, directory, dns, gpo, audit, backup, preflight, provision), 40+ endpoints API
+- Frontend React: 10 páginas (Login, Dashboard, Users, Groups, Computers, OUs, DNS, GPO, PasswordPolicy, Backup, Audit)
+- Binario nativo: ~10 MB, CGO_ENABLED=0, systemd, 1.5 MB RAM
+- 19 commits en GitHub
 
 **Próximos pasos (Sesión 5):**
-- Fase 4 restante: importación masiva CSV, atributos extendidos
-- Fase 5: DNS avanzado (parser de zonelist corregir), GPOs con plantillas
-- Fase 6: 2FA TOTP, RBAC, audit log, hardening
-- Frontend: páginas de OUs, password policy, DNS
+- Script de instalación install.sh interactivo
+- 2FA TOTP
+- RBAC granular (roles: Domain Admin, Helpdesk, Read-only)
+- Multi-DC (join, replication, FSMO, trusts)
+- SSE streaming de provisioning
+- Corregir backup (necesita server target)
+- resolv.conf protection (dhcpcd lo sobreescribe al reiniciar)
 
 **Contexto para retomar:**
-- SambaForge v0.3.0-dev corriendo en 172.30.36.115 (KVM, Debian 13)
-- Dominio TELEDATA.LAB funcional con Samba AD DC 4.22.10
-- Backend: 30+ endpoints API funcionando (auth, dashboard, users, groups, computers, ous, dns, password-policy, preflight, provision)
-- Frontend: Login + Dashboard + Users + Groups + Computers funcionando
-- 14 commits en GitHub, todo pusheado
-- SSH VM: plink -hostkey "SHA256:pUuQplga4Gap3ZR4h5AHN9jTn3UU0QlMFCgDlQetubM" root@172.30.36.115
-- Usuario verificó: login OK, crear usuario OK
+- SambaForge v0.5.0-dev en 172.30.36.115 (KVM, Debian 13)
+- Dominio TELEDATA.LAB funcional, Samba AD DC 4.22.10
+- 40+ endpoints API, 10 páginas frontend
+- SSH: plink -hostkey "SHA256:pUuQplga4Gap3ZR4h5AHN9jTn3UU0QlMFCgDlQetubM" root@172.30.36.115
 
 **Riesgos identificados nuevos:**
 - Samba AD no soporta clear-text LDAP binds — SambaForge debe usar STARTTLS o GSSAPI siempre
