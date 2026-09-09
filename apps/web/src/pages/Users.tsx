@@ -175,6 +175,8 @@ export function Sidebar() {
     { label: 'Política de Contraseña', path: '/password-policy' },
     { label: 'Backup', path: '/backup' },
     { label: 'Auditoría', path: '/audit' },
+    { label: 'Multi-DC', path: '/multi-dc' },
+    { label: 'Configuración', path: '/settings' },
   ]
   const currentPath = window.location.pathname
   return (

@@ -160,7 +160,9 @@ func PostProvision(ctx context.Context, realm, dnsForwarder string, logWriter io
 	if err := os.WriteFile("/etc/resolv.conf", []byte(resolvContent), 0644); err != nil {
 		return fmt.Errorf("escribir resolv.conf: %w", err)
 	}
-	fmt.Fprintf(logWriter, "[post-provision] resolv.conf configurado (nameserver 127.0.0.1)\n")
+	// Protect resolv.conf from being overwritten by dhcpcd/NetworkManager
+	exec.CommandContext(ctx, "chattr", "+i", "/etc/resolv.conf").Run()
+	fmt.Fprintf(logWriter, "[post-provision] resolv.conf configurado y protegido (nameserver 127.0.0.1)\n")
 
 	// Step 3: Kill stale winbindd from standalone Samba (if any)
 	fmt.Fprintf(logWriter, "[post-provision] Limpiando procesos stale...\n")

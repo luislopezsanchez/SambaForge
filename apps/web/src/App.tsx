@@ -10,6 +10,8 @@ import DNS from './pages/DNS'
 import GPO from './pages/GPO'
 import Audit from './pages/Audit'
 import Backup from './pages/Backup'
+import Settings from './pages/Settings'
+import MultiDC from './pages/MultiDC'
 import { useAuth } from './stores/auth'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -32,8 +34,10 @@ export default function App() {
       <Route path="/password-policy" element={<ProtectedRoute><PasswordPolicy /></ProtectedRoute>} />
       <Route path="/dns" element={<ProtectedRoute><DNS /></ProtectedRoute>} />
       <Route path="/gpos" element={<ProtectedRoute><GPO /></ProtectedRoute>} />
-      <Route path="/audit" element={<ProtectedRoute><Audit /></ProtectedRoute>} />
       <Route path="/backup" element={<ProtectedRoute><Backup /></ProtectedRoute>} />
+      <Route path="/audit" element={<ProtectedRoute><Audit /></ProtectedRoute>} />
+      <Route path="/multi-dc" element={<ProtectedRoute><MultiDC /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     </Routes>
   )
 }

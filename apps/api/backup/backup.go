@@ -31,7 +31,7 @@ func BackupDomain(ctx context.Context, destDir string, logWriter io.Writer) (*Ba
 
 	fmt.Fprintf(logWriter, "[backup] Starting online backup to %s...\n", backupFile)
 
-	cmd := exec.CommandContext(ctx, "samba-tool", "domain", "backup", "online", "--targetdir="+destDir, "-P", "--color=never")
+	cmd := exec.CommandContext(ctx, "samba-tool", "domain", "backup", "online", "--server=127.0.0.1", "--targetdir="+destDir, "-P", "--color=never")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return &BackupResult{
@@ -42,7 +42,7 @@ func BackupDomain(ctx context.Context, destDir string, logWriter io.Writer) (*Ba
 	}
 
 	// Find the backup file (samba-tool names it automatically)
-	matches, _ := filepath.Glob(filepath.Join(destDir, "*.tar"))
+	matches, _ := filepath.Glob(filepath.Join(destDir, "*.tar*"))
 	var latestFile string
 	var latestSize int64
 	for _, m := range matches {
@@ -73,7 +73,7 @@ func ListBackups(destDir string) ([]map[string]interface{}, error) {
 	if destDir == "" {
 		destDir = "/var/backups/sambaforge"
 	}
-	matches, _ := filepath.Glob(filepath.Join(destDir, "*.tar"))
+	matches, _ := filepath.Glob(filepath.Join(destDir, "*.tar*"))
 	var backups []map[string]interface{}
 	for _, m := range matches {
 		info, err := os.Stat(m)
