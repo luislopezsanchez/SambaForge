@@ -32,15 +32,12 @@ func ListZones() ([]Zone, error) {
 	}
 
 	var zones []Zone
-	for _, line := range strings.Split(string(out), "\n") {
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.Contains(line, "samba-tool") || strings.Contains(line, "pszZoneName") {
-			continue
-		}
-		// Parse zone name from output
-		parts := strings.Fields(line)
-		if len(parts) >= 1 {
-			zones = append(zones, Zone{Name: parts[0]})
+		if strings.HasPrefix(line, "pszZoneName") {
+			name := strings.TrimSpace(strings.SplitN(line, ":", 2)[1])
+			zones = append(zones, Zone{Name: name, Type: "primary"})
 		}
 	}
 	return zones, nil
@@ -57,20 +54,34 @@ func QueryRecords(zone, name string) ([]Record, error) {
 	}
 
 	var records []Record
+	var currentName string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.Contains(line, "samba-tool") {
 			continue
 		}
-		// Try to parse: Name Type Data
-		parts := strings.Fields(line)
-		if len(parts) >= 3 {
-			records = append(records, Record{
-				Zone: zone,
-				Name: parts[0],
-				Type: parts[1],
-				Data: strings.Join(parts[2:], " "),
-			})
+		// Parse "Name=xyz, Records=N" header lines
+		if strings.HasPrefix(line, "Name=") {
+			parts := strings.SplitN(line, ",", 2)
+			currentName = strings.TrimPrefix(parts[0], "Name=")
+			continue
+		}
+		// Parse record lines: "A: 172.30.36.115 (flags=...)" or "CNAME: target." etc
+		for _, rtype := range []string{"A:", "AAAA:", "CNAME:", "NS:", "MX:", "SRV:", "TXT:", "PTR:", "SOA:"} {
+			if strings.HasPrefix(line, rtype) {
+				data := strings.TrimSpace(strings.TrimPrefix(line, rtype))
+				// Extract just the data part before (flags=...
+				if idx := strings.Index(data, " (flags="); idx > 0 {
+					data = strings.TrimSpace(data[:idx])
+				}
+				records = append(records, Record{
+					Zone: zone,
+					Name: currentName,
+					Type: strings.TrimSuffix(rtype, ":"),
+					Data: data,
+				})
+				break
+			}
 		}
 	}
 	return records, nil
@@ -86,7 +97,10 @@ type AddRecordRequest struct {
 
 func AddRecord(req AddRecordRequest) error {
 	server := "127.0.0.1"
-	cmd := exec.Command("samba-tool", "dns", "add", server, req.Zone, req.Name, req.Type, req.Data, "--color=never")
+	// Use Kerberos auth - kinit must have been done previously
+	// Set KRB5CCNAME from a cached ticket
+	cmd := exec.Command("samba-tool", "dns", "add", server, req.Zone, req.Name, req.Type, req.Data, "-P", "--color=never")
+	cmd.Env = append(os.Environ())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("samba-tool dns add: %s: %w", string(out), err)
@@ -97,7 +111,7 @@ func AddRecord(req AddRecordRequest) error {
 // DeleteRecord deletes a DNS record.
 func DeleteRecord(zone, name, rtype, data string) error {
 	server := "127.0.0.1"
-	cmd := exec.Command("samba-tool", "dns", "delete", server, zone, name, rtype, data, "--color=never")
+	cmd := exec.Command("samba-tool", "dns", "delete", server, zone, name, rtype, data, "-P", "--color=never")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("samba-tool dns delete: %s: %w", string(out), err)

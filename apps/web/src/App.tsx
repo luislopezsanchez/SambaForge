@@ -4,6 +4,9 @@ import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Groups from './pages/Groups'
 import Computers from './pages/Computers'
+import OUs from './pages/OUs'
+import PasswordPolicy from './pages/PasswordPolicy'
+import DNS from './pages/DNS'
 import { useAuth } from './stores/auth'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -22,6 +25,9 @@ export default function App() {
       <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
       <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
       <Route path="/computers" element={<ProtectedRoute><Computers /></ProtectedRoute>} />
+      <Route path="/ous" element={<ProtectedRoute><OUs /></ProtectedRoute>} />
+      <Route path="/password-policy" element={<ProtectedRoute><PasswordPolicy /></ProtectedRoute>} />
+      <Route path="/dns" element={<ProtectedRoute><DNS /></ProtectedRoute>} />
     </Routes>
   )
 }

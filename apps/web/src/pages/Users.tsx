@@ -166,18 +166,21 @@ export default function Users() {
 export function Sidebar() {
   const navItems = [
     { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Usuarios', path: '/users', active: true },
+    { label: 'Usuarios', path: '/users' },
     { label: 'Grupos', path: '/groups' },
+    { label: 'OUs', path: '/ous' },
     { label: 'Equipos', path: '/computers' },
     { label: 'DNS', path: '/dns' },
+    { label: 'Política de Contraseña', path: '/password-policy' },
   ]
+  const currentPath = window.location.pathname
   return (
     <nav className="w-60 border-r border-border bg-bg-card min-h-[calc(100vh-3.5rem)] p-4 space-y-1">
       {navItems.map((item) => (
         <a
           key={item.path}
           href={item.path}
-          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${item.active ? 'bg-accent text-white' : 'text-gray-400 hover:bg-bg-elevated'}`}
+          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${currentPath === item.path ? 'bg-accent text-white' : 'text-gray-400 hover:bg-bg-elevated'}`}
         >
           {item.label}
         </a>

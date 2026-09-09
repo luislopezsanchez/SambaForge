@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -105,6 +106,11 @@ func Login(username, password, realm string) (*TokenResponse, error) {
 		return nil, fmt.Errorf("generar token: %w", err)
 	}
 
+	// If admin, also create a Kerberos ticket cache for internal DNS operations
+	if isAdmin {
+		createKerberosTicket(username, password, realm)
+	}
+
 	return &TokenResponse{
 		Token:    tokenString,
 		Username: username,
@@ -186,4 +192,13 @@ func generateSessionID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// createKerberosTicket runs kinit to create a ticket cache for internal samba-tool operations.
+func createKerberosTicket(username, password, realm string) {
+	// Write password to a temp file and pipe to kinit
+	// This avoids passing password on the command line
+	cmd := exec.Command("kinit", fmt.Sprintf("%s@%s", username, realm))
+	cmd.Stdin = strings.NewReader(password + "\n")
+	cmd.Run() // ignore error - best effort
 }
