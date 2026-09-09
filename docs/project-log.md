@@ -184,10 +184,57 @@
 - resolv.conf protection (dhcpcd lo sobreescribe al reiniciar)
 
 **Contexto para retomar:**
-- SambaForge v0.5.0-dev en 172.30.36.115 (KVM, Debian 13)
+- SambaForge v1.0.0 en 172.30.36.115 (KVM, Debian 13)
 - Dominio TELEDATA.LAB funcional, Samba AD DC 4.22.10
-- 40+ endpoints API, 10 páginas frontend
+- 50+ endpoints API, 12 páginas frontend
 - SSH: plink -hostkey "SHA256:pUuQplga4Gap3ZR4h5AHN9jTn3UU0QlMFCgDlQetubM" root@172.30.36.115
+
+---
+
+### Sesión 5 — 2026-09-09: v1.0.0 — Primera versión funcional completa
+
+**Objetivo:** Terminar todas las fases y llegar a una primera versión funcional.
+
+**Acciones realizadas:**
+1. **install.sh** (deploy/install.sh): script interactivo de instalación (300 líneas)
+   - Detección OS (Debian 13+/Ubuntu 24.04+), advertencia LXC
+   - Configuración interactiva de IP estática (Debian interfaces / Ubuntu netplan)
+   - Corrección automática /etc/hosts, verificación hostname
+   - Detención servicios conflictivos (avahi, systemd-resolved, dnsmasq)
+   - Instalación Samba AD DC + Go + Node.js, backup smb.conf, limpieza DBs
+   - Compilación SambaForge desde GitHub, systemd service
+2. **2FA TOTP** (twofa/twofa.go): GenerateSecret (QR), ValidateCode, Has2FA, Disable2FA
+   - Endpoints: GET/POST/DELETE /2fa/*
+3. **Multi-DC** (multidc/multidc.go): ShowFSMO, TransferRole, JoinDC, DemoteDC, ShowTrusts
+   - Endpoints: GET /fsmo, POST /fsmo/transfer, GET /trusts
+4. **Frontend MultiDC.tsx**: roles FSMO, transferir rol, trusts
+5. **Frontend Settings.tsx**: 2FA con QR, verificación de código, deshabilitar
+6. **Backup fix**: --server=127.0.0.1 flag, glob *.tar* para .tar.bz2
+7. **resolv.conf protection**: chattr +i post-provision
+8. **Rate limiting**: global 20 req/s + login 5 req/min (anti brute-force)
+9. **Self-service password change**: POST /api/auth/change-password con verificación LDAP
+
+**Verificado:**
+- 2FA: secret generado, QR URL, enabled=true
+- FSMO: Schema/Naming/Infrastructure en SAMBAFORGE
+- Backup API: 2 backups .tar.bz2 listados (1.4 MiB)
+- Cambio de contraseña: status password_changed
+- Rate limiting activo
+
+**Estado final v1.0.0:**
+- Backend Go: 10 paquetes, 50+ endpoints
+- Frontend: 12 páginas (Login, Dashboard, Users, Groups, Computers, OUs, DNS, GPO, PasswordPolicy, Backup, Audit, MultiDC, Settings)
+- Binario nativo ~12 MB, 1.5 MB RAM, 25 commits GitHub
+- Dominio TELEDATA.LAB en 172.30.36.115 (KVM)
+
+**Pendiente para futuras versiones (mejoras):**
+- RBAC granular (roles Helpdesk, Read-only en vez de binario admin/no-admin)
+- SSE streaming de provisioning en tiempo real
+- API REST documentada (OpenAPI/Swagger)
+- OAuth2 server para integraciones
+- Tests automatizados (unit + E2E)
+- Importación masiva CSV
+- Self-service portal completo (editar atributos propios)
 
 **Riesgos identificados nuevos:**
 - Samba AD no soporta clear-text LDAP binds — SambaForge debe usar STARTTLS o GSSAPI siempre
