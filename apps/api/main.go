@@ -56,6 +56,11 @@ func main() {
 	api.POST("/groups/:name/members", addGroupMemberHandler)
 	api.DELETE("/groups/:name/members/:member", removeGroupMemberHandler)
 	api.GET("/computers", listComputersHandler)
+	api.GET("/ous", listOUsHandler)
+	api.POST("/ous", createOUHandler)
+	api.DELETE("/ous/:name", deleteOUHandler)
+	api.GET("/password-policy", getPasswordPolicyHandler)
+	api.PUT("/password-policy", setPasswordPolicyHandler)
 	api.GET("/dns/zones", listDnsZonesHandler)
 	api.GET("/dns/zones/:zone/records", listDnsRecordsHandler)
 	api.POST("/dns/records", addDnsRecordHandler)
@@ -277,6 +282,56 @@ func listComputersHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, computers)
+}
+
+// --- OUs ---
+
+func listOUsHandler(c echo.Context) error {
+	ous, err := directory.ListOUs()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, ous)
+}
+
+func createOUHandler(c echo.Context) error {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if err := directory.CreateOU(req.Name); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusCreated, map[string]string{"status": "created", "name": req.Name})
+}
+
+func deleteOUHandler(c echo.Context) error {
+	name := c.Param("name")
+	if err := directory.DeleteOU(name); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "deleted", "name": name})
+}
+
+// --- Password Policy ---
+
+func getPasswordPolicyHandler(c echo.Context) error {
+	policy, err := directory.GetPasswordPolicy()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, policy)
+}
+
+func setPasswordPolicyHandler(c echo.Context) error {
+	var req directory.SetPasswordPolicyRequest
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if err := directory.SetPasswordPolicy(req); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "updated"})
 }
 
 // --- DNS ---
