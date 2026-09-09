@@ -19,8 +19,10 @@ import (
 	"github.com/luislopezsanchez/SambaForge/directory"
 	"github.com/luislopezsanchez/SambaForge/dns"
 	"github.com/luislopezsanchez/SambaForge/gpo"
+	"github.com/luislopezsanchez/SambaForge/multidc"
 	"github.com/luislopezsanchez/SambaForge/preflight"
 	"github.com/luislopezsanchez/SambaForge/provision"
+	"github.com/luislopezsanchez/SambaForge/twofa"
 )
 
 var version = "0.2.0-dev"
@@ -78,6 +80,13 @@ func main() {
 	api.POST("/backup", backupHandler)
 	api.GET("/backups", listBackupsHandler)
 	api.DELETE("/backups", deleteBackupHandler)
+	api.GET("/2fa/status/:username", get2FAStatusHandler)
+	api.POST("/2fa/setup", setup2FAHandler)
+	api.POST("/2fa/verify", verify2FAHandler)
+	api.DELETE("/2fa/:username", disable2FAHandler)
+	api.GET("/fsmo", fsmoShowHandler)
+	api.POST("/fsmo/transfer", fsmoTransferHandler)
+	api.GET("/trusts", listTrustsHandler)
 
 	// Serve frontend
 	webDir := os.Getenv("SAMBAFORGE_WEB_DIR")
@@ -485,6 +494,93 @@ func deleteBackupHandler(c echo.Context) error {
 	}
 	audit.Log(c.Get("username").(string), "delete", "backup", req.Path, c.RealIP())
 	return c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// --- 2FA TOTP ---
+
+func get2FAStatusHandler(c echo.Context) error {
+	username := c.Param("username")
+	enabled := twofa.Has2FA(username)
+	return c.JSON(http.StatusOK, map[string]bool{"enabled": enabled})
+}
+
+func setup2FAHandler(c echo.Context) error {
+	var req struct {
+		Username string `json:"username"`
+		Realm    string `json:"realm"`
+	}
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if req.Realm == "" {
+		req.Realm = auth.DetectRealmPublic()
+	}
+	url, err := twofa.GenerateSecret(req.Username, req.Realm)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "setup", "2fa", req.Username, c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"qrUrl": url})
+}
+
+func verify2FAHandler(c echo.Context) error {
+	var req struct {
+		Username string `json:"username"`
+		Code     string `json:"code"`
+	}
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	valid, err := twofa.ValidateCode(req.Username, req.Code)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if !valid {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "código TOTP inválido"})
+	}
+	return c.JSON(http.StatusOK, map[string]bool{"valid": true})
+}
+
+func disable2FAHandler(c echo.Context) error {
+	username := c.Param("username")
+	if err := twofa.Disable2FA(username); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "disable", "2fa", username, c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"status": "disabled"})
+}
+
+// --- Multi-DC ---
+
+func fsmoShowHandler(c echo.Context) error {
+	roles, err := multidc.ShowFSMO()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, roles)
+}
+
+func fsmoTransferHandler(c echo.Context) error {
+	var req struct {
+		Role     string `json:"role"`
+		TargetDC string `json:"targetDC"`
+	}
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if err := multidc.TransferRole(req.Role, req.TargetDC); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "transfer", "fsmo", req.Role, c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"status": "transferred", "role": req.Role})
+}
+
+func listTrustsHandler(c echo.Context) error {
+	trusts, err := multidc.ShowTrusts()
+	if err != nil {
+		return c.JSON(http.StatusOK, []string{})
+	}
+	return c.JSON(http.StatusOK, trusts)
 }
 
 // --- Preflight ---
