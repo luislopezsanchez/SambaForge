@@ -162,7 +162,13 @@ func PostProvision(ctx context.Context, realm, dnsForwarder string, logWriter io
 	}
 	fmt.Fprintf(logWriter, "[post-provision] resolv.conf configurado (nameserver 127.0.0.1)\n")
 
-	// Step 3: Start samba service
+	// Step 3: Kill stale winbindd from standalone Samba (if any)
+	fmt.Fprintf(logWriter, "[post-provision] Limpiando procesos stale...\n")
+	exec.CommandContext(ctx, "systemctl", "stop", "winbind").Run()
+	exec.CommandContext(ctx, "systemctl", "disable", "winbind").Run()
+	os.Remove("/run/samba/winbindd.pid")
+
+	// Step 4: Start samba service
 	fmt.Fprintf(logWriter, "[post-provision] Iniciando servicio Samba AD DC...\n")
 	cmd := exec.CommandContext(ctx, "systemctl", "restart", "samba-ad-dc")
 	if err := cmd.Run(); err != nil {
@@ -174,7 +180,7 @@ func PostProvision(ctx context.Context, realm, dnsForwarder string, logWriter io
 	}
 	fmt.Fprintf(logWriter, "[post-provision] Servicio Samba AD DC iniciado\n")
 
-	// Step 4: Verify
+	// Step 5: Verify
 	fmt.Fprintf(logWriter, "[post-provision] Verificando dominio...\n")
 	verifyCmd := exec.CommandContext(ctx, "samba-tool", "domain", "level", "show")
 	verifyOut, err := verifyCmd.CombinedOutput()
