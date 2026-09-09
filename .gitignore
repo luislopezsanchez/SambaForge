@@ -51,4 +51,4 @@ config.toml
 *.pem
 *.key
 *.crt
-ssl/local/
+ssl/local/credenciales.txt
