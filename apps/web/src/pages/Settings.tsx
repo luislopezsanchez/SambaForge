@@ -80,7 +80,50 @@ export default function Settings() {
               </div>
             )}
           </div>
+
+          {/* Change Password Section */}
+          <ChangePasswordSection username={username} />
         </main>
+      </div>
+    </div>
+  )
+}
+
+function ChangePasswordSection(_props: { username: string | null }) {
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+
+  const changeMutation = useMutation({
+    mutationFn: (data: { oldPassword: string; newPassword: string }) => API.post('/auth/change-password', data).then((res) => res.data),
+    onSuccess: () => { setOldPassword(''); setNewPassword(''); setConfirm(''); },
+  })
+
+  return (
+    <div className="bg-bg-card border border-border rounded-xl p-6 max-w-2xl">
+      <h2 className="text-sm font-medium text-gray-400 mb-4">Cambiar mi contraseña</h2>
+      <div className="space-y-4">
+        <div>
+          <label className="text-sm text-gray-400">Contraseña actual</label>
+          <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent mt-1" />
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Nueva contraseña</label>
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent mt-1" />
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Confirmar nueva contraseña</label>
+          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent mt-1" />
+        </div>
+        {changeMutation.isSuccess && <p className="text-green-400 text-sm">Contraseña cambiada correctamente</p>}
+        {changeMutation.isError && <p className="text-red-400 text-sm">{(changeMutation.error as any)?.response?.data?.error || 'Error al cambiar contraseña'}</p>}
+        <button
+          onClick={() => changeMutation.mutate({ oldPassword, newPassword })}
+          disabled={!oldPassword || !newPassword || newPassword !== confirm || changeMutation.isPending}
+          className="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50 flex items-center gap-2"
+        >
+          {changeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Cambiar contraseña
+        </button>
       </div>
     </div>
   )

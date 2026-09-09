@@ -188,6 +188,32 @@ func DetectRealmPublic() string {
 	return detectRealm()
 }
 
+// VerifyCredentials checks username/password against the domain without generating a token.
+func VerifyCredentials(username, password, realm string) error {
+	if realm == "" {
+		realm = detectRealm()
+	}
+	if realm == "" {
+		return fmt.Errorf("no se pudo detectar el realm")
+	}
+
+	l, err := ldap.DialURL("ldap://127.0.0.1:389")
+	if err != nil {
+		return fmt.Errorf("conectar LDAP: %w", err)
+	}
+	defer l.Close()
+
+	if err := l.StartTLS(&tls.Config{InsecureSkipVerify: true}); err != nil {
+		return fmt.Errorf("STARTTLS: %w", err)
+	}
+
+	upn := fmt.Sprintf("%s@%s", username, realm)
+	if err := l.Bind(upn, password); err != nil {
+		return fmt.Errorf("credenciales inválidas")
+	}
+	return nil
+}
+
 func generateSessionID() string {
 	b := make([]byte, 16)
 	rand.Read(b)

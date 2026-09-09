@@ -25,7 +25,7 @@ import (
 	"github.com/luislopezsanchez/SambaForge/twofa"
 )
 
-var version = "0.2.0-dev"
+var version = "1.0.0"
 
 func main() {
 	auth.Init()
@@ -36,10 +36,16 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
+
+	// Rate limit login specifically (anti brute-force)
+	loginLimiter := middleware.NewRateLimiterMemoryStoreWithConfig(
+		middleware.RateLimiterMemoryStoreConfig{Rate: 5, Burst: 5},
+	)
 
 	// Public routes (no auth)
 	e.GET("/api/health", healthHandler)
-	e.POST("/api/auth/login", loginHandler)
+	e.POST("/api/auth/login", loginHandler, middleware.RateLimiter(loginLimiter))
 	e.GET("/api/server/preflight", preflightHandler)
 	e.POST("/api/server/preflight/fix/:id", preflightFixHandler)
 	e.POST("/api/domain/provision", provisionHandler)
@@ -87,6 +93,7 @@ func main() {
 	api.GET("/fsmo", fsmoShowHandler)
 	api.POST("/fsmo/transfer", fsmoTransferHandler)
 	api.GET("/trusts", listTrustsHandler)
+	api.POST("/auth/change-password", changeOwnPasswordHandler)
 
 	// Serve frontend
 	webDir := os.Getenv("SAMBAFORGE_WEB_DIR")
@@ -494,6 +501,38 @@ func deleteBackupHandler(c echo.Context) error {
 	}
 	audit.Log(c.Get("username").(string), "delete", "backup", req.Path, c.RealIP())
 	return c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// --- Change own password (self-service) ---
+
+func changeOwnPasswordHandler(c echo.Context) error {
+	username := c.Get("username").(string)
+	var req struct {
+		OldPassword string `json:"oldPassword"`
+		NewPassword string `json:"newPassword"`
+	}
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if req.NewPassword == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "newPassword es obligatorio"})
+	}
+
+	// Verify old password via LDAP bind
+	realm := auth.DetectRealmPublic()
+	if err := auth.VerifyCredentials(username, req.OldPassword, realm); err != nil {
+		audit.Log(username, "password_change_failed", "self-service", err.Error(), c.RealIP())
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "contraseña actual incorrecta"})
+	}
+
+	// Change password via samba-tool
+	if err := directory.SetUserPassword(username, req.NewPassword); err != nil {
+		audit.Log(username, "password_change_failed", "self-service", err.Error(), c.RealIP())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	audit.Log(username, "password_change", "self-service", "success", c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"status": "password_changed"})
 }
 
 // --- 2FA TOTP ---
