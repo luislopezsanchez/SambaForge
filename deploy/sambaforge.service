@@ -1,0 +1,15 @@
+[Unit]
+Description=SambaForge — Web management for Samba4 AD DC
+After=network.target samba-ad-dc.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/sambaforge
+Environment=SAMBAFORGE_PORT=8444
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
