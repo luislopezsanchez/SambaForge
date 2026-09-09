@@ -131,10 +131,61 @@
 - `docs/reference/code-analysis-cockpit-samba.md` — Análisis de cockpit-samba-ad-dc (43KB, 975 líneas)
 - `docs/reference/code-analysis-synthesis.md` — Síntesis: 25 patrones a adoptar + 16 anti-patrones a evitar + checklist 99 operaciones
 
-**Próximos pasos (Sesión 3):**
-- Tarea 0.1.5: Verificar soporte --json de subcomandos samba-tool (requiere servidor con Samba)
-- **Gate de Fase 0:** Validar que todos los entregables están completos antes de pasar a Fase 1
-- Iniciar Fase 1: scaffold del monorepo, Go module, React app, CI, Docker
+### Sesión 3 — 2026-09-09: Fase 1 + ADR-010 Preflight
+
+**Objetivo:** Scaffold del monorepo, compilación nativa en VM, y formalización del preflight interactivo.
+
+**Acciones realizadas:**
+1. Verificación de VM 172.30.36.91 (Debian 13, 4 vCPU, 4 GB RAM, 40 GB disco, Samba no instalada, Go no instalada, IP en DHCP, /etc/hosts con 127.0.1.1)
+2. Instalación de herramientas base en VM: git, make, curl, golang-go (Go 1.24.4)
+3. Creación del scaffold Go backend (Echo v4, /api/health, static file server)
+4. Creación del scaffold React frontend (Vite, TS, Tailwind, shadcn/ui pattern, i18n es/en/pt, Login + Dashboard)
+5. Compilación del binario nativo en la VM: CGO_ENABLED=0, 6.2 MB, estático, stripped
+6. Instalación de systemd service (sambaforge.service) — activo, enabled, 1.5 MB RAM
+7. Frontend compilado con Vite: 1713 módulos, 414 KB JS + 10 KB CSS
+8. Verificación: API responde 200, frontend sirve HTML, login funciona, dashboard accesible
+9. CI en GitHub Actions (Go vet + build + test, React build + lint)
+10. Makefile con targets dev/build/test/lint/deploy
+11. Push a GitHub (18 archivos, 646 líneas)
+12. **ADR-010: Preflight checks con auto-remediación interactiva** — 18 checks definidos, auto-remediables donde es seguro, interactivos cuando se necesita input del usuario. Script install.sh + endpoint API + wizard web.
+
+**Decisión clave del usuario:**
+- El despliegue debe ser **nativo** (binario + systemd), no Docker. Confirmado.
+- SambaForge debe soportar **Debian 13+ y Ubuntu 24.04+**. El script detecta el OS y se adapta.
+- El script de instalación debe ser **interactivo**: detectar problemas, corregir automáticamente los seguros, preguntar al usuario cuando se necesita input (ej: IP estática).
+- El usuario final instalará una VM limpia y SambaForge debe preparar todo desde cero.
+
+**Archivos creados:**
+- `apps/api/go.mod`, `apps/api/main.go` — Backend Go + Echo
+- `apps/web/` (14 archivos) — Frontend React + Vite + TS + Tailwind + i18n
+- `Makefile` — Build system
+- `deploy/sambaforge.service` — systemd unit
+- `.github/workflows/ci.yml` — CI
+- `docs/adr/adr-010-preflight.md` — 18 preflight checks con auto-remediación
+
+**Verificado en VM:**
+- `systemctl status sambaforge` → active (running), 1.5 MB RAM
+- `curl http://127.0.0.1:8444/api/health` → 200 OK
+- `curl http://127.0.0.1:8444/` → 200 OK (frontend)
+- Login funcional desde navegador web
+- Dashboard accesible tras login
+
+**Próximos pasos (Sesión 4):**
+- Iniciar Fase 2: Spike de provisioning
+- Implementar módulo de preflight en Go (los 18 checks del ADR-010)
+- Implementar `GET /api/server/preflight` endpoint
+- Instalar Samba en la VM
+- Ejecutar `samba-tool domain provision` desde la API
+- Verificar dominio AD funcional (kinit, DNS records, Windows join)
+
+**Contexto para retomar:**
+- Fase 1 completa. SambaForge corre nativo en la VM 172.30.36.91 via systemd.
+- ADR-010 define 18 preflight checks con auto-remediación. Esto se implementa en Fase 2.
+- VM tiene Go 1.24.4, git, make, nodejs instalados. Samba NO instalada aún.
+- IP de la VM es DHCP (172.30.36.91/24) — hay que hacerla estática como parte del preflight.
+- /etc/hosts tiene 127.0.1.1 → hay que corregir.
+- GitHub: 8 commits, todo pusheado.
+- Host SSH: usar plink con -hostkey "SHA256:9dmPLR+A+9nEIKQcfU8SsT6INvb0dBA7oGySLuXpXFY"
 
 **Riesgos identificados nuevos:**
 - Samba AD no soporta clear-text LDAP binds — SambaForge debe usar STARTTLS o GSSAPI siempre
