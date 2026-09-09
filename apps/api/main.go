@@ -13,9 +13,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"github.com/luislopezsanchez/SambaForge/audit"
 	"github.com/luislopezsanchez/SambaForge/auth"
+	"github.com/luislopezsanchez/SambaForge/backup"
 	"github.com/luislopezsanchez/SambaForge/directory"
 	"github.com/luislopezsanchez/SambaForge/dns"
+	"github.com/luislopezsanchez/SambaForge/gpo"
 	"github.com/luislopezsanchez/SambaForge/preflight"
 	"github.com/luislopezsanchez/SambaForge/provision"
 )
@@ -24,6 +27,7 @@ var version = "0.2.0-dev"
 
 func main() {
 	auth.Init()
+	audit.Init()
 
 	e := echo.New()
 
@@ -66,6 +70,14 @@ func main() {
 	api.POST("/dns/records", addDnsRecordHandler)
 	api.DELETE("/dns/records", deleteDnsRecordHandler)
 	api.GET("/dns/forwarders", getDnsForwardersHandler)
+	api.GET("/gpos", listGPOsHandler)
+	api.POST("/gpos", createGPOHandler)
+	api.DELETE("/gpos/:id", deleteGPOHandler)
+	api.GET("/gpos/templates", listGPOTemplatesHandler)
+	api.GET("/audit", listAuditHandler)
+	api.POST("/backup", backupHandler)
+	api.GET("/backups", listBackupsHandler)
+	api.DELETE("/backups", deleteBackupHandler)
 
 	// Serve frontend
 	webDir := os.Getenv("SAMBAFORGE_WEB_DIR")
@@ -114,8 +126,10 @@ func loginHandler(c echo.Context) error {
 
 	resp, err := auth.Login(req.Username, req.Password, req.Realm)
 	if err != nil {
+		audit.Log(req.Username, "login_failed", "auth", err.Error(), c.RealIP())
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
+	audit.Log(req.Username, "login", "auth", "success", c.RealIP())
 	return c.JSON(http.StatusOK, resp)
 }
 
@@ -176,6 +190,7 @@ func createUserHandler(c echo.Context) error {
 	if err := directory.CreateUser(req); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	audit.Log(c.Get("username").(string), "create", "user", req.Username, c.RealIP())
 	return c.JSON(http.StatusCreated, map[string]string{"status": "created", "username": req.Username})
 }
 
@@ -184,6 +199,7 @@ func deleteUserHandler(c echo.Context) error {
 	if err := directory.DeleteUser(username); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	audit.Log(c.Get("username").(string), "delete", "user", username, c.RealIP())
 	return c.JSON(http.StatusOK, map[string]string{"status": "deleted", "username": username})
 }
 
@@ -390,6 +406,85 @@ func getDnsForwardersHandler(c echo.Context) error {
 		return c.JSON(http.StatusOK, []string{})
 	}
 	return c.JSON(http.StatusOK, forwarders)
+}
+
+// --- GPO ---
+
+func listGPOsHandler(c echo.Context) error {
+	gpos, err := gpo.ListGPOs()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, gpos)
+}
+
+func createGPOHandler(c echo.Context) error {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if err := gpo.CreateGPO(req.Name); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "create", "gpo", req.Name, c.RealIP())
+	return c.JSON(http.StatusCreated, map[string]string{"status": "created", "name": req.Name})
+}
+
+func deleteGPOHandler(c echo.Context) error {
+	id := c.Param("id")
+	if err := gpo.DeleteGPO(id); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "delete", "gpo", id, c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"status": "deleted", "id": id})
+}
+
+func listGPOTemplatesHandler(c echo.Context) error {
+	return c.JSON(http.StatusOK, gpo.ListTemplates())
+}
+
+// --- Audit ---
+
+func listAuditHandler(c echo.Context) error {
+	entries, err := audit.List(100)
+	if err != nil {
+		return c.JSON(http.StatusOK, []audit.Entry{})
+	}
+	return c.JSON(http.StatusOK, entries)
+}
+
+// --- Backup ---
+
+func backupHandler(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Minute)
+	defer cancel()
+	var logBuf bytesBuffer
+	result, err := backup.BackupDomain(ctx, "", &logBuf)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "backup", "domain", result.File, c.RealIP())
+	return c.JSON(http.StatusOK, result)
+}
+
+func listBackupsHandler(c echo.Context) error {
+	backups, err := backup.ListBackups("")
+	if err != nil {
+		return c.JSON(http.StatusOK, []map[string]interface{}{})
+	}
+	return c.JSON(http.StatusOK, backups)
+}
+
+func deleteBackupHandler(c echo.Context) error {
+	var req struct{ Path string `json:"path"` }
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if err := backup.DeleteBackup(req.Path); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	audit.Log(c.Get("username").(string), "delete", "backup", req.Path, c.RealIP())
+	return c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // --- Preflight ---

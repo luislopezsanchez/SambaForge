@@ -171,7 +171,10 @@ export function Sidebar() {
     { label: 'OUs', path: '/ous' },
     { label: 'Equipos', path: '/computers' },
     { label: 'DNS', path: '/dns' },
+    { label: 'GPOs', path: '/gpos' },
     { label: 'Política de Contraseña', path: '/password-policy' },
+    { label: 'Backup', path: '/backup' },
+    { label: 'Auditoría', path: '/audit' },
   ]
   const currentPath = window.location.pathname
   return (
