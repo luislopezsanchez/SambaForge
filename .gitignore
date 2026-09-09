@@ -1,0 +1,54 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+vendor/
+
+# Node/Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+build/
+*.bin
+
+# Config local
+*.env
+*.env.local
+config.toml
+
+# Database local
+*.db
+*.sqlite
+*.sqlite3
+*.ldb
+*.tdb
+
+# Logs
+*.log
+
+# Certificates (local dev)
+*.pem
+*.key
+*.crt
+ssl/local/
