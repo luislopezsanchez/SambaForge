@@ -102,11 +102,12 @@
    - ADR-007: react-i18next
    - ADR-008: Caddy
    - ADR-009: Ejecución de samba-tool (sudoers restringido, PASSWD env var, allowlist)
-4. **Tarea 0.2.9 — Análisis de código fuente** 🟡 En progreso (4 subagentes corriendo en paralelo)
-   - Subagente 0: Análisis de Vexa (Go+React) — corriendo
-   - Subagente 1: Análisis de go-samba4 (Go+Echo+LDAP+Kerberos) — corriendo
-   - Subagente 2: Análisis de Samba Conductor (React+Docker) — corriendo
-   - Subagente 3: Análisis de cockpit-samba-ad-dc (GSoC 2020) — corriendo
+4. **Tarea 0.2.9 — Análisis de código fuente** ✅ Completada (4 subagentes finalizaron)
+   - Subagente 0: Vexa — Go+Gin+React, SSE streaming provisioning, doble auth Samba+PAM, bootstrap.sh. Limitaciones: no usa go-ldap/gokrb5, sanitizer permissive, CORS inseguro.
+   - Subagente 1: go-samba4 — Go+Echo+go-ldap+GORM, LDAP wrapper auto-reconnect, password UTF-16LE, 2FA TOTP (no integrado), i18n gotext .po. Limitaciones: Kerberos no implementado (placeholder), 2FA código muerto, sin paginación LDAP, RBAC binario.
+   - Subagente 2: Samba Conductor — Meteor 3.4+React+MongoDB, zero stored credentials (AES-256-GCM memoria TTL 30min), OAuth2 server, DR con PBKDF2+S3, 3 temas, execFile no shell, 3 modos ejecución samba-tool. Limitaciones: MongoDB obligatorio, Meteor DDP no REST, TLS rejectUnauthorized:false.
+   - Subagente 3: cockpit-samba-ad-dc — 99 operaciones de samba-tool mapeadas en 17 grupos, cockpit.script/spawn con superuser:true, gate function testparm. Limitaciones: parseo texto ingenuo split('\n'), credenciales por pantalla, template string injection, estancado desde 2020.
+   - Síntesis creada: 25 patrones a adoptar + 16 anti-patrones a evitar + checklist de 99 operaciones.
 
 **Decisiones cerradas (esta sesión):**
 - ADR-005: Echo v4 (antes P-001) ✅
@@ -120,23 +121,20 @@
 **Decisiones pendientes:**
 - (Ninguna — todos los ADRs originales están cerrados)
 
-**Archivos creados:**
+**Archivos creados (esta sesión):**
 - `docs/reference/go-libraries-evaluation.md` — Evaluación completa de 7 librerías Go con snippets
 - `docs/reference/ui-style-guide.md` — Guía de estilo, paleta, tipografía, 6 wireframes, i18n
 - `docs/adr/adr-001-to-009.md` — 9 ADRs cerrados
-
-**Archivos en progreso (subagentes):**
-- `docs/reference/code-analysis-vexa.md` — Subagente escribiendo
-- `docs/reference/code-analysis-go-samba4.md` — Subagente escribiendo
-- `docs/reference/code-analysis-samba-conductor.md` — Subagente escribiendo
-- `docs/reference/code-analysis-cockpit-samba.md` — Subagente escribiendo
+- `docs/reference/code-analysis-vexa.md` — Análisis de código fuente de Vexa (42KB, 1048 líneas)
+- `docs/reference/code-analysis-go-samba4.md` — Análisis de go-samba4 (53KB, 1572 líneas)
+- `docs/reference/code-analysis-samba-conductor.md` — Análisis de Samba Conductor (50KB, 1346 líneas)
+- `docs/reference/code-analysis-cockpit-samba.md` — Análisis de cockpit-samba-ad-dc (43KB, 975 líneas)
+- `docs/reference/code-analysis-synthesis.md` — Síntesis: 25 patrones a adoptar + 16 anti-patrones a evitar + checklist 99 operaciones
 
 **Próximos pasos (Sesión 3):**
-- Revisar los 4 análisis de código fuente cuando los subagentes terminen
 - Tarea 0.1.5: Verificar soporte --json de subcomandos samba-tool (requiere servidor con Samba)
-- Actualizar plan con hallazgos de los análisis de código
-- Commit y push de todos los documentos nuevos
 - **Gate de Fase 0:** Validar que todos los entregables están completos antes de pasar a Fase 1
+- Iniciar Fase 1: scaffold del monorepo, Go module, React app, CI, Docker
 
 **Riesgos identificados nuevos:**
 - Samba AD no soporta clear-text LDAP binds — SambaForge debe usar STARTTLS o GSSAPI siempre
@@ -144,14 +142,15 @@
 - Subcomandos sin --json requerirán parseo de texto con regex — mapear cuáles en Fase 1
 
 **Contexto para retomar:**
-- Fase 0 casi completa. Solo falta que terminen los 4 subagentes de análisis de código fuente.
-- 9 ADRs cerrados, 7 librerías Go evaluadas, 6 wireframes creados, guía de estilo definida.
+- **Fase 0 completa.** Todos los entregables están listos: 9 ADRs, 7 librerías Go evaluadas, 6 wireframes, guía de estilo, 4 análisis de código fuente + síntesis.
+- 25 patrones a adoptar y 16 anti-patrones a evitar documentados en code-analysis-synthesis.md.
+- Checklist de 99 operaciones de samba-tool a cubrir, mapeadas a fases de SambaForge.
 - Total dependencias Go: 6 externas + stdlib, sin CGO.
 - Total dependencias frontend: 8 (React, Vite, TS, Tailwind, shadcn/ui, Zustand, TanStack Query, react-i18next).
-- GitHub repo: https://github.com/luislopezsanchez/SambaForge
-- Token de GitHub en credential helper (~/.git-credentials)
+- Repos GitHub: https://github.com/luislopezsanchez/SambaForge — 5 commits, todo pusheado.
+- Token de GitHub en credential helper (~/.git-credentials).
 - Usuario GitHub: luislopezsanchez
-- Una vez que los subagentes terminen, hacer commit + push de todos los docs nuevos y revisar el gate de Fase 0.
+- **Próxima sesión: revisar gate de Fase 0 con el usuario, luego iniciar Fase 1 (scaffold del proyecto).**
 
 ---
 
